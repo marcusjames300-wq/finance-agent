@@ -235,4 +235,126 @@ st.subheader("🎯 News Sentiment")
 positive_words = ['growth', 'profit', 'up', 'rise', 'gain', 'positive', 'strong',
                   'beat', 'exceed', 'record', 'high', 'deal', 'partner', 'win',
                   'expand', 'boost', 'surge', 'rally', 'outperform', 'dividend']
-negative_words = ['fall', 'drop', 'loss', 'dow
+negative_words = ['fall', 'drop', 'loss', 'down', 'decline', 'negative', 'weak',
+                  'miss', 'below', 'low', 'cut', 'reduce', 'risk', 'warn',
+                  'debt', 'concern', 'struggle', 'slump', 'crash', 'downgrade']
+positive_count = 0
+negative_count = 0
+for headline in headlines:
+    headline_lower = headline.lower()
+    for word in positive_words:
+        if word in headline_lower:
+            positive_count += 1
+    for word in negative_words:
+        if word in headline_lower:
+            negative_count += 1
+total = positive_count + negative_count
+if total == 0:
+    sentiment_score = 50
+elif positive_count > negative_count:
+    sentiment_score = min(50 + ((positive_count / total) * 50), 100)
+else:
+    sentiment_score = max(50 - ((negative_count / total) * 50), 0)
+
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric("Positive Signals", f"✅ {positive_count}")
+with col2:
+    st.metric("Negative Signals", f"❌ {negative_count}")
+with col3:
+    if sentiment_score >= 65:
+        st.metric("Overall Sentiment", "🟢 Positive")
+    elif sentiment_score <= 35:
+        st.metric("Overall Sentiment", "🔴 Negative")
+    else:
+        st.metric("Overall Sentiment", "🟡 Neutral")
+st.progress(sentiment_score / 100)
+st.caption(f"Sentiment score: {sentiment_score:.0f}/100")
+
+st.subheader("🧠 AI Trading Recommendation")
+with st.spinner("Analysing Legal & General..."):
+    prompt = (
+        "You are an experienced trading analyst specialising in UK financial stocks. "
+        "You are supporting a retail investor monitoring Legal & General Group (LON: LGEN). "
+        "The investor prefers buying dips and selling when in profit, "
+        "wants clear simple buy/sell/wait guidance in plain English. "
+        "Key factors for Legal & General: dividend yield, pension fund flows, "
+        "interest rate environment, asset management performance, and UK financial regulation. "
+        "Note: Legal & General has one of the highest dividend yields in the FTSE 100 "
+        "making it attractive for income investors. "
+        f"Current Price: {current_price:.2f}p. "
+        f"Todays Change: {todays_change:.2f}%. "
+        f"20 Day Average: {ma20:.2f}p. "
+        f"50 Day Average: {ma50:.2f}p. "
+        f"Volume vs Normal: {volume_ratio:.2f}x. "
+        f"From 52 week High: {distance_from_52high:.2f}%. "
+        f"From 52 week Low: {distance_from_52low:.2f}%. "
+        f"Latest News: {headlines_text}. "
+        "Key rules: BUY when price is below 20 day average, volume normal or low, no bad news. "
+        "SELL when price extended above averages near 52 week highs. "
+        "WAIT when signals are mixed. "
+        "Provide: 1. RECOMMENDATION: Buy/Sell/Wait. "
+        "2. REASON: One clear sentence. "
+        "3. KEY LEVEL TO WATCH: One specific price. "
+        "4. RISK WARNING: One thing that could go wrong. "
+        "Under 150 words, plain English, no jargon."
+    )
+    try:
+        ai_response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt
+        )
+        ai_text = ai_response.text
+        st.info(ai_text)
+
+        if send_email:
+            email_sent = send_alert_email(
+                alert_level, alert_msg, name, current_price, todays_change,
+                ai_text, GMAIL_ADDRESS, GMAIL_APP_PASSWORD, ALERT_EMAIL
+            )
+            if email_sent:
+                st.success("📧 Alert email sent!")
+            else:
+                st.warning("📧 Email alert could not be sent")
+
+    except Exception:
+        st.warning("⏳ AI analysis temporarily unavailable — will resume shortly")
+
+st.subheader("📏 52 Week Position")
+pos = ((current_price - week52_low) / (week52_high - week52_low))
+st.progress(pos)
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.caption(f"52wk Low: £{week52_low:.2f}")
+with col2:
+    st.caption(f"Current: £{current_price:.2f} ({pos*100:.0f}% of range)")
+with col3:
+    st.caption(f"52wk High: £{week52_high:.2f}")
+
+st.divider()
+st.subheader("📝 Trade Journal")
+
+journal_file = "trade_journal.json"
+
+def load_journal():
+    if os.path.exists(journal_file):
+        with open(journal_file, 'r') as f:
+            return json.load(f)
+    return []
+
+journal = load_journal()
+
+if journal:
+    st.write("**Recent AI Recommendations:**")
+    for entry in reversed(journal[-20:]):
+        st.markdown(
+            f"📅 **{entry['date']}** | "
+            f"💰 {entry['price']} ({entry['change']}) | "
+            f"{entry['alert']} | "
+            f"🤖 {entry['recommendation']}"
+        )
+else:
+    st.info("No recommendations recorded yet — journal will fill up as the agent runs.")
+
+st.divider()
+st.caption("⚠️ This tool is for informational purposes only and does not constitute financial advice.")
