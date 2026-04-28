@@ -118,8 +118,11 @@ week52_high = history['High'].max()
 week52_low = history['Low'].min()
 distance_from_52high = ((current_price - week52_high) / week52_high) * 100
 distance_from_52low = ((current_price - week52_low) / week52_low) * 100
-open_price = info.get('open', current_price)
-todays_change = ((current_price - open_price) / open_price) * 100
+open_price = info.get('open', 0)
+if open_price and open_price > 0:
+    todays_change = ((current_price - open_price) / open_price) * 100
+else:
+    todays_change = 0.0
 
 change_icon = "📈" if todays_change > 0 else "📉"
 position = ((current_price - week52_low) / (week52_high - week52_low)) * 100
